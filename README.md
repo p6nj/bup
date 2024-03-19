@@ -1,2 +1,2 @@
 # BUP
-Beeper UDP socket.
+Beeper unix socket.
