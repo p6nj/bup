@@ -1,6 +1,6 @@
-use rodio::{cpal::FromSample, OutputStream, PlayError, Source, StreamError};
+use rodio::{OutputStream, PlayError, Sample, Source, StreamError};
 use std::{
-    io,
+    io::{self, Read, Seek},
     marker::PhantomData,
     os::unix::net::{SocketAddr, UnixListener, UnixStream},
 };
@@ -16,38 +16,24 @@ pub enum BupError {
     Play(#[from] PlayError),
 }
 
-pub trait Samples: Source + Send
-where
-    <Self as Iterator>::Item: rodio::Sample,
-{
-}
-
 pub trait Buzzer {
-    fn buzz<S: Samples>(&mut self, incoming: UnixStream) -> S
+    fn buzz<S: Source>(&mut self, incoming: UnixStream) -> S
     where
-        <S as Iterator>::Item: rodio::Sample;
+        <S as Iterator>::Item: Sample;
 }
-pub struct Bup<S>(SocketAddr, PhantomData<S>)
+pub struct Bup<S: Source>(SocketAddr, PhantomData<S>)
 where
-    S: Samples,
-    <S as Iterator>::Item: rodio::Sample;
+    <S as Iterator>::Item: Sample;
 
 impl<S> Bup<S>
 where
-    f32: FromSample<<S as Iterator>::Item>,
-    S: Samples + 'static,
-    <S as Iterator>::Item: rodio::Sample,
+    S: Source + Read + Seek + Send + Sync + 'static,
+    <S as Iterator>::Item: Sample,
 {
-    pub fn activate<B: Buzzer>(&self, mut buzzer: B) -> Result<(), BupError>
-    where
-        <S as Iterator>::Item: rodio::Sample,
-    {
+    pub fn activate<B: Buzzer>(&self, mut buzzer: B) -> Result<(), BupError> {
         let listener = UnixListener::bind_addr(&self.0)?;
         let (_stream, stream_handle) = OutputStream::try_default()?;
-        Ok(stream_handle.play_raw(
-            buzzer
-                .buzz::<S>(listener.accept().unwrap().0)
-                .convert_samples(),
-        )?)
+        stream_handle.play_once(buzzer.buzz::<S>(listener.accept().unwrap().0))?;
+        Ok(())
     }
 }
