@@ -21,6 +21,8 @@ pub enum BupError {
     Play(#[from] PlayError),
     #[error("socket name is too long")]
     SocketName(io::Error),
+    #[error("can't accept connections")]
+    SocketAccept(io::Error),
 }
 
 pub trait StateBuzzer<S>
@@ -74,14 +76,24 @@ where
     }
     pub fn activate_with_state<B: StateBuzzer<S>>(&self, mut buzzer: B) -> Result<(), BupError> {
         let (listener, (_, handle)) = self.setup()?;
-        handle.play_raw(buzzer.buzz(listener.accept().unwrap().0).convert_samples())?;
-        Ok(())
+        loop {
+            handle.play_raw(
+                buzzer
+                    .buzz(listener.accept().map_err(|e| BupError::SocketAccept(e))?.0)
+                    .convert_samples(),
+            )?
+        }
     }
 
     pub fn activate<B: Buzzer<S>>(&self, buzzer: B) -> Result<(), BupError> {
         let (listener, (_, handle)) = self.setup()?;
-        handle.play_raw(buzzer.buzz(listener.accept().unwrap().0).convert_samples())?;
-        Ok(())
+        loop {
+            handle.play_raw(
+                buzzer
+                    .buzz(listener.accept().map_err(|e| BupError::SocketAccept(e))?.0)
+                    .convert_samples(),
+            )?
+        }
     }
 }
 
