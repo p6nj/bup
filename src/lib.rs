@@ -1,4 +1,4 @@
-use rodio::{OutputStream, PlayError, Sample, Source, StreamError};
+use rodio::{OutputStream, OutputStreamHandle, PlayError, Sample, Source, StreamError};
 use std::{
     io::{self, Read, Seek},
     marker::PhantomData,
@@ -16,11 +16,33 @@ pub enum BupError {
     Play(#[from] PlayError),
 }
 
-pub trait Buzzer {
-    fn buzz<S: Source>(&mut self, incoming: UnixStream) -> S
-    where
-        <S as Iterator>::Item: Sample;
+pub trait StateBuzzer<S>
+where
+    S: Source,
+    <S as Iterator>::Item: Sample,
+{
+    fn buzz(&mut self, incoming: UnixStream) -> S;
 }
+
+pub trait Buzzer<S>
+where
+    S: Source,
+    <S as Iterator>::Item: Sample,
+{
+    fn buzz(&self, incoming: UnixStream) -> S;
+}
+
+impl<S, F> Buzzer<S> for F
+where
+    F: Fn(UnixStream) -> S,
+    S: Source,
+    <S as Iterator>::Item: Sample,
+{
+    fn buzz(&self, incoming: UnixStream) -> S {
+        self(incoming)
+    }
+}
+
 pub struct Bup<S: Source>(SocketAddr, PhantomData<S>)
 where
     <S as Iterator>::Item: Sample;
@@ -30,10 +52,21 @@ where
     S: Source + Read + Seek + Send + Sync + 'static,
     <S as Iterator>::Item: Sample,
 {
-    pub fn activate<B: Buzzer>(&self, mut buzzer: B) -> Result<(), BupError> {
-        let listener = UnixListener::bind_addr(&self.0)?;
-        let (_stream, stream_handle) = OutputStream::try_default()?;
-        stream_handle.play_once(buzzer.buzz::<S>(listener.accept().unwrap().0))?;
+    fn setup(&self) -> Result<(UnixListener, (OutputStream, OutputStreamHandle)), BupError> {
+        Ok((
+            UnixListener::bind_addr(&self.0)?,
+            OutputStream::try_default()?,
+        ))
+    }
+    pub fn activate_with_state<B: StateBuzzer<S>>(&self, mut buzzer: B) -> Result<(), BupError> {
+        let (listener, (_, handle)) = self.setup()?;
+        handle.play_once(buzzer.buzz(listener.accept().unwrap().0))?;
+        Ok(())
+    }
+
+    pub fn activate<B: Buzzer<S>>(&self, buzzer: B) -> Result<(), BupError> {
+        let (listener, (_, handle)) = self.setup()?;
+        handle.play_once(buzzer.buzz(listener.accept().unwrap().0))?;
         Ok(())
     }
 }
