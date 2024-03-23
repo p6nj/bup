@@ -86,7 +86,7 @@ where
     }
 
     pub fn activate<B: Buzzer<S>>(&self, buzzer: B) -> Result<(), BupError> {
-        let (listener, (_, handle)) = self.setup()?;
+        let (listener, (_stream, handle)) = self.setup()?;
         loop {
             handle.play_raw(
                 buzzer
@@ -103,6 +103,6 @@ where
     <S as Iterator>::Item: Sample,
 {
     fn default() -> Self {
-        Self(SocketAddr::from_abstract_name("bup").unwrap(), PhantomData)
+        Self(SocketAddr::from_abstract_name(b"bup").unwrap(), PhantomData)
     }
 }
