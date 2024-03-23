@@ -79,7 +79,7 @@ fn main() -> Result<(), BupError> {
             Bup::new(
                 // binding a UnixListener with an abstract name instead of a filename makes things easier
                 UnixListener::bind_addr(&SocketAddr::from_abstract_name("bup").unwrap()).unwrap(),
-                handle,
+                &handle,
             )
             // now activate it!
             .activate(|(stream, _): (UnixStream, SocketAddr)| {

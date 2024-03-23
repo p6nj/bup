@@ -31,6 +31,16 @@ where
     fn accept(&self) -> Result<O, E>;
 }
 
+impl<O, E, F> Receiver<O, E> for F
+where
+    F: Fn() -> Result<O, E>,
+    E: Into<BupError>,
+{
+    fn accept(&self) -> Result<O, E> {
+        self()
+    }
+}
+
 impl Receiver<(UnixStream, std::os::unix::net::SocketAddr), io::Error> for UnixListener {
     fn accept(&self) -> Result<(UnixStream, std::os::unix::net::SocketAddr), std::io::Error> {
         self.accept()
@@ -103,7 +113,7 @@ where
 }
 
 /// Main struct with a receiver and an audio output handle.
-pub struct Bup<S, R, O, E>
+pub struct Bup<'a, S, R, O, E>
 where
     S: Source,
     <S as Iterator>::Item: Sample,
@@ -113,12 +123,12 @@ where
     /// Socket-like receiver.
     input: R,
     /// Audio output handle.
-    output: OutputStreamHandle,
+    output: &'a OutputStreamHandle,
     /// Phantom data to store your generics for impls.
     _phantom: (PhantomData<S>, PhantomData<O>, PhantomData<E>),
 }
 
-impl<S, R, O, E> Bup<S, R, O, E>
+impl<'a, S, R, O, E> Bup<'a, S, R, O, E>
 where
     S: Source + Send + 'static,
     <S as Iterator>::Item: Sample,
@@ -127,7 +137,7 @@ where
     E: Into<BupError>,
 {
     /// Generate a new BUP with ready-to-go socket-like reciever and audio output handle.
-    pub fn new(input: R, output: OutputStreamHandle) -> Self {
+    pub fn new(input: R, output: &'a OutputStreamHandle) -> Self {
         Self {
             input,
             output,
