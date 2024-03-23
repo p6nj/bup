@@ -76,7 +76,7 @@ fn main() -> Result<(), BupError> {
                 UnixListener::bind_addr(&SocketAddr::from_abstract_name("bup").unwrap()).unwrap(),
                 handle,
             )
-            .activate(|stream: UnixStream| {
+            .activate(|(stream, _): (UnixStream, SocketAddr)| {
                 SineWave::new(
                     (442f32 / 4f32) * {
                         let mut buf = [0; 1];
