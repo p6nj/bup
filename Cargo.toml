@@ -3,7 +3,7 @@ name = "buplib"
 version = "1.0.0"
 edition = "2021"
 description = "A small beeper / buzzer socket wrapper library"
-license = "UNLICENSE"
+license = "Unlicense"
 license-file = "UNLICENSE"
 repository = "https://github.com/p6nj/bup"
 
