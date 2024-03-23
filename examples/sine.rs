@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use bup::{Bup, BupError};
+use buplib::{Bup, BupError};
 use rodio::{OutputStream, Source};
 
 // source
