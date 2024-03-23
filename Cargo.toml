@@ -1,7 +1,11 @@
 [package]
-name = "bup"
+name = "buplib"
 version = "1.0.0"
 edition = "2021"
+description = "A small beeper / buzzer socket wrapper library"
+license = "UNLICENSE"
+license-file = "UNLICENSE"
+repository = "https://github.com/p6nj/bup"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
