@@ -3,14 +3,14 @@ use std::{
     io::{Read, Write},
     os::{
         linux::net::SocketAddrExt,
-        unix::net::{SocketAddr, UnixStream},
+        unix::net::{SocketAddr, UnixListener, UnixStream},
     },
     thread::{self, sleep},
     time::Duration,
 };
 
 use bup::{Bup, BupError};
-use rodio::Source;
+use rodio::{OutputStream, Source};
 
 /// An infinite source that produces a sine.
 ///
@@ -68,14 +68,19 @@ impl Source for SineWave {
 }
 
 fn main() -> Result<(), BupError> {
+    let (_stream, handle) = OutputStream::try_default().unwrap();
     let bup_handle = thread::Builder::new()
         .name("bup".to_string())
-        .spawn(move || {
-            Bup::default().activate(|stream: UnixStream| {
+        .spawn(|| {
+            Bup::new(
+                UnixListener::bind_addr(&SocketAddr::from_abstract_name("bup").unwrap()).unwrap(),
+                handle,
+            )
+            .activate(|stream: UnixStream| {
                 SineWave::new(
                     (442f32 / 4f32) * {
                         let mut buf = [0; 1];
-                        stream.take(1).read(&mut buf).unwrap();
+                        stream.take(1).read_exact(&mut buf).unwrap();
                         *buf.first().unwrap() as f32
                     },
                     0.02,

@@ -1,28 +1,17 @@
-use rodio::{
-    cpal::FromSample, OutputStream, OutputStreamHandle, PlayError, Sample, Source, StreamError,
-};
+use rodio::{cpal::FromSample, OutputStreamHandle, PlayError, Sample, Source};
 use std::{
     io::{self},
     marker::PhantomData,
-    os::{
-        linux::net::SocketAddrExt,
-        unix::net::{SocketAddr, UnixListener, UnixStream},
-    },
+    os::unix::net::{UnixListener, UnixStream},
 };
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum BupError {
-    #[error("can't bind socket to address")]
-    UnixSocket(#[from] io::Error),
-    #[error("can't open default output sound device")]
-    OutputStream(#[from] StreamError),
     #[error("can't play a sound")]
     Play(#[from] PlayError),
-    #[error("socket name is too long")]
-    SocketName(io::Error),
     #[error("can't accept connections")]
-    SocketAccept(io::Error),
+    SocketAccept(#[from] io::Error),
 }
 
 pub trait StateBuzzer<S>
@@ -52,9 +41,25 @@ where
     }
 }
 
-pub struct Bup<S: Source>(SocketAddr, PhantomData<S>)
+impl<S, F> StateBuzzer<S> for F
 where
-    <S as Iterator>::Item: Sample;
+    F: Fn(UnixStream) -> S,
+    S: Source,
+    <S as Iterator>::Item: Sample,
+{
+    fn buzz(&mut self, incoming: UnixStream) -> S {
+        self(incoming)
+    }
+}
+
+pub struct Bup<S: Source>
+where
+    <S as Iterator>::Item: Sample,
+{
+    input: UnixListener,
+    output: OutputStreamHandle,
+    phantom: PhantomData<S>,
+}
 
 impl<S> Bup<S>
 where
@@ -62,47 +67,23 @@ where
     <S as Iterator>::Item: Sample,
     f32: FromSample<<S as Iterator>::Item>,
 {
-    pub fn try_with_name<A: AsRef<[u8]>>(addr: A) -> Result<Self, BupError> {
-        Ok(Self(
-            SocketAddr::from_abstract_name(addr).map_err(|e| BupError::SocketName(e))?,
-            PhantomData,
-        ))
-    }
-    fn setup(&self) -> Result<(UnixListener, (OutputStream, OutputStreamHandle)), BupError> {
-        Ok((
-            UnixListener::bind_addr(&self.0)?,
-            OutputStream::try_default()?,
-        ))
+    pub fn new(input: UnixListener, output: OutputStreamHandle) -> Self {
+        Self {
+            input,
+            output,
+            phantom: PhantomData,
+        }
     }
     pub fn activate_with_state<B: StateBuzzer<S>>(&self, mut buzzer: B) -> Result<(), BupError> {
-        let (listener, (_, handle)) = self.setup()?;
         loop {
-            handle.play_raw(
-                buzzer
-                    .buzz(listener.accept().map_err(|e| BupError::SocketAccept(e))?.0)
-                    .convert_samples(),
-            )?
+            self.output
+                .play_raw(buzzer.buzz(self.input.accept()?.0).convert_samples())?
         }
     }
-
     pub fn activate<B: Buzzer<S>>(&self, buzzer: B) -> Result<(), BupError> {
-        let (listener, (_stream, handle)) = self.setup()?;
         loop {
-            handle.play_raw(
-                buzzer
-                    .buzz(listener.accept().map_err(|e| BupError::SocketAccept(e))?.0)
-                    .convert_samples(),
-            )?
+            self.output
+                .play_raw(buzzer.buzz(self.input.accept()?.0).convert_samples())?
         }
-    }
-}
-
-impl<S> Default for Bup<S>
-where
-    S: Source + Send + 'static,
-    <S as Iterator>::Item: Sample,
-{
-    fn default() -> Self {
-        Self(SocketAddr::from_abstract_name(b"bup").unwrap(), PhantomData)
     }
 }
