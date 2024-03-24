@@ -4,9 +4,8 @@ version = "2.0.0"
 edition = "2021"
 description = "A small beeper / buzzer socket wrapper library"
 license = "Unlicense"
-license-file = "UNLICENSE"
 repository = "https://github.com/p6nj/bup"
-include = ["examples/*", "!*.lock", "!gitignore"]
+include = ["examples/*", "src/*"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
