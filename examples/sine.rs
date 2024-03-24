@@ -9,7 +9,8 @@ use std::{
     time::Duration,
 };
 
-use buplib::{Bup, BupError};
+use anyhow::{Error, Result};
+use buplib::Bup;
 use rodio::{OutputStream, Source};
 
 // source
@@ -68,14 +69,14 @@ impl Source for SineWave {
 }
 
 // now the fun part
-fn main() -> Result<(), BupError> {
+fn main() -> Result<(), Error> {
     // open a sound output stream and get a handle
     // ⚠️ we want to keep this OutputStream allocated : dropping it will render the handle unusable which will generate a rodio NoDevice error when playing
     let (_stream, handle) = OutputStream::try_default().unwrap();
     // spawn a thread to activate our buzzer (make it listen for incoming connections) because it will block its thread
     let bup_handle = thread::Builder::new()
         .name("bup".to_string())
-        .spawn(move || {
+        .spawn(move || -> Result<()> {
             Bup::new(
                 // binding a UnixListener with an abstract name instead of a filename makes things easier
                 UnixListener::bind_addr(&SocketAddr::from_abstract_name("bup").unwrap()).unwrap(),
