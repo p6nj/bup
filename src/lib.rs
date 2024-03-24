@@ -163,15 +163,15 @@ where
 /// Classic Buzzer, able to generate samples out of a Receiver's return value.
 /// To keep some information between beeps, use [`StateBuzzer`].
 #[cfg(feature = "future")]
-pub trait FutureMutBuzzer<S, R, O, E>
+pub trait FutureMutBuzzer<H, E, L, P>
 where
-    S: Source,
-    <S as Iterator>::Item: Sample,
-    R: FutureMutReceiver<O, E>,
-    E: Sized,
+    H: Source,
+    <H as Iterator>::Item: Sample,
+    E: FutureMutReceiver<L, P>,
+    P: Sized,
 {
     /// Called at any incoming connexion / event to generate samples out of its fruits (stateless version).
-    fn buzz(&self, incoming: O) -> S;
+    fn buzz(&self, incoming: L) -> H;
 }
 
 impl<S, R, O, E, F> Buzzer<S, R, O, E> for F
