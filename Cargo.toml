@@ -1,6 +1,6 @@
 [package]
 name = "buplib"
-version = "3.0.0"
+version = "3.1.0"
 edition = "2021"
 description = "A small beeper / buzzer socket wrapper library"
 license = "Unlicense"
@@ -14,3 +14,6 @@ rodio = { version = "0.17.3", default-features = false }
 
 [dev-dependencies]
 anyhow = "1.0.81"
+
+[features]
+mut = []

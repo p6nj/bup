@@ -20,12 +20,35 @@ where
     fn accept(&self) -> Result<O, E>;
 }
 
+/// A structure, usually a socket, which can accept connexions (blocking) and return something out of it.
+/// Impls are available for common socket types.
+/// (mut version)
+#[cfg(feature = "mut")]
+pub trait MutReceiver<O, E>
+where
+    E: Sized,
+{
+    /// Accept some kind of connection or wait for something to happen.
+    fn accept(&mut self) -> Result<O, E>;
+}
+
 impl<O, E, F> Receiver<O, E> for F
 where
     F: Fn() -> Result<O, E>,
     E: Sized,
 {
     fn accept(&self) -> Result<O, E> {
+        self()
+    }
+}
+
+#[cfg(feature = "mut")]
+impl<O, E, F> MutReceiver<O, E> for F
+where
+    F: FnMut() -> Result<O, E>,
+    E: Sized,
+{
+    fn accept(&mut self) -> Result<O, E> {
         self()
     }
 }
@@ -97,12 +120,40 @@ where
     fn buzz(&self, incoming: O) -> S;
 }
 
+/// Classic Buzzer, able to generate samples out of a Receiver's return value.
+/// To keep some information between beeps, use [`StateBuzzer`].
+#[cfg(feature = "mut")]
+pub trait MutBuzzer<S, R, O, E>
+where
+    S: Source,
+    <S as Iterator>::Item: Sample,
+    R: MutReceiver<O, E>,
+    E: Sized,
+{
+    /// Called at any incoming connexion / event to generate samples out of its fruits (stateless version).
+    fn buzz(&self, incoming: O) -> S;
+}
+
 impl<S, R, O, E, F> Buzzer<S, R, O, E> for F
 where
     F: Fn(O) -> S,
     S: Source,
     <S as Iterator>::Item: Sample,
     R: Receiver<O, E>,
+    E: Sized,
+{
+    fn buzz(&self, incoming: O) -> S {
+        self(incoming)
+    }
+}
+
+#[cfg(feature = "mut")]
+impl<S, R, O, E, F> MutBuzzer<S, R, O, E> for F
+where
+    F: Fn(O) -> S,
+    S: Source,
+    <S as Iterator>::Item: Sample,
+    R: MutReceiver<O, E>,
     E: Sized,
 {
     fn buzz(&self, incoming: O) -> S {
@@ -129,6 +180,32 @@ where
     S: Source,
     <S as Iterator>::Item: Sample,
     R: Receiver<O1, E1>,
+    A: AudioPlayer<S, O2, E2>,
+    E1: Sized,
+    E2: Sized,
+{
+    /// Socket-like receiver.
+    input: R,
+    /// Audio output handle.
+    output: &'a A,
+    /// Phantom data to store types. Do not use.
+    #[allow(clippy::type_complexity)]
+    _phantom: (
+        PhantomData<S>,
+        PhantomData<O1>,
+        PhantomData<O2>,
+        PhantomData<E1>,
+        PhantomData<E2>,
+    ),
+}
+
+/// Main struct with a receiver and an audio output handle.
+#[cfg(feature = "mut")]
+pub struct MutBup<'a, S, R, O1, E1, A, O2, E2>
+where
+    S: Source,
+    <S as Iterator>::Item: Sample,
+    R: MutReceiver<O1, E1>,
     A: AudioPlayer<S, O2, E2>,
     E1: Sized,
     E2: Sized,
@@ -186,6 +263,43 @@ where
     /// Activate the BUP. Blocks and loops over incoming connections or events.
     pub fn activate<B: Buzzer<S, R, O1, E1>, E: Sized + From<E1> + From<E2>>(
         &self,
+        buzzer: B,
+    ) -> Result<(), E> {
+        loop {
+            self.output
+                .play(buzzer.buzz(self.input.accept().map_err(Into::<E>::into)?))?;
+        }
+    }
+}
+
+#[cfg(feature = "mut")]
+impl<'a, S, R, A, O1, O2, E1, E2> MutBup<'a, S, R, O1, E1, A, O2, E2>
+where
+    S: Source + Send + 'static,
+    <S as Iterator>::Item: Sample,
+    f32: FromSample<<S as Iterator>::Item>,
+    R: MutReceiver<O1, E1>,
+    A: AudioPlayer<S, O2, E2>,
+    E1: Sized,
+    E2: Sized,
+{
+    /// Generate a new BUP with ready-to-go socket-like reciever and audio output handle.
+    pub fn new(input: R, output: &'a A) -> Self {
+        Self {
+            input,
+            output,
+            _phantom: (
+                PhantomData,
+                PhantomData,
+                PhantomData,
+                PhantomData,
+                PhantomData,
+            ),
+        }
+    }
+    /// Activate the BUP. Blocks and loops over incoming connections or events.
+    pub fn activate<B: MutBuzzer<S, R, O1, E1>, E: Sized + From<E1> + From<E2>>(
+        &mut self,
         buzzer: B,
     ) -> Result<(), E> {
         loop {
