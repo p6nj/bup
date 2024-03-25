@@ -121,6 +121,19 @@ where
     }
 }
 
+impl<S, O, E, F> AudioPlayer<S, O, E> for F
+where
+    S: Source,
+    O: Sized,
+    E: Sized,
+    F: Fn(S) -> Result<O, E>,
+    <S as Iterator>::Item: Sample,
+{
+    fn play(&self, source: S) -> Result<O, E> {
+        self(source)
+    }
+}
+
 /// [`Buzzer`] with a state! Implement this on a struct to save information between beeps.
 pub trait StateBuzzer<S, R, O, E>
 where
